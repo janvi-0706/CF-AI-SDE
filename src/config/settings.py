@@ -89,14 +89,14 @@ VALIDATION_CONFIG = {
     "max_gap_multiplier": 2.0,        # Max gap = 2x expected interval
 }
 
-# Feature Engineering Configuration - ~60 Technical Indicators
+# Feature Engineering Configuration - Optimized ~70 Technical Indicators
 FEATURE_CONFIG = {
-    # ==================== TREND INDICATORS (~20 features) ====================
-    # Simple Moving Averages - Support/Resistance levels
-    "sma_periods": [10, 20, 50, 100, 200],  # 5 SMAs
+    # ==================== TREND INDICATORS (~10 features) ====================
+    # Simple Moving Averages - Support/Resistance levels (reduced from 5 to 3)
+    "sma_periods": [20, 50, 200],  # 3 SMAs - most critical periods
     
-    # Exponential Moving Averages - Responsive to recent changes
-    "ema_periods": [12, 26, 50],  # 3 EMAs
+    # Exponential Moving Averages - Responsive to recent changes (reduced from 3 to 2)
+    "ema_periods": [12, 26],  # 2 EMAs - keep MACD components
     
     # MACD - Trend changes and momentum shifts
     "macd_params": {
@@ -108,15 +108,15 @@ FEATURE_CONFIG = {
     # ADX - Trend strength quantification (crucial for regime detection)
     "adx_period": 14,  # 1 feature
     
-    # Moving Average Crossovers and Relationships
-    "ma_crossovers": True,  # ~8 features: price vs MA, MA crossovers
+    # Moving Average Crossovers and Relationships (reduced to ~3 key features)
+    "ma_crossovers": True,  # ~3 features: price vs SMA20, golden/death cross
     
-    # ==================== MOMENTUM INDICATORS (~15 features) ====================
+    # ==================== MOMENTUM INDICATORS (~8 features) ====================
     # RSI - Overbought/Oversold conditions (mean reversion)
     "rsi_period": 14,  # 1 feature (0-100 scale)
     
-    # Multi-period RSI for different timeframes
-    "rsi_periods_multi": [7, 14, 21],  # 3 RSI variants
+    # Multi-period RSI - DISABLED to reduce redundancy
+    "rsi_periods_multi": [],  # 0 features (removed)
     
     # Stochastic Oscillator - Price position in range
     "stoch_params": {
@@ -124,8 +124,8 @@ FEATURE_CONFIG = {
         "d_period": 3,
     },  # 2 features: %K and %D
     
-    # Rate of Change - Momentum strength at multiple periods
-    "roc_periods": [5, 10, 20],  # 3 ROC features
+    # Rate of Change - Momentum strength (reduced from 3 to 2 periods)
+    "roc_periods": [5, 20],  # 2 ROC features
     
     # Commodity Channel Index (CCI) - Overbought/Oversold
     "cci_period": 20,  # 1 feature
@@ -133,62 +133,60 @@ FEATURE_CONFIG = {
     # Money Flow Index (MFI) - Volume-weighted RSI
     "mfi_period": 14,  # 1 feature
     
-    # Ultimate Oscillator - Multi-timeframe momentum
-    "ultimate_osc_periods": [7, 14, 28],  # 1 feature (combines 3 periods)
+    # Ultimate Oscillator - DISABLED (redundant with other momentum indicators)
+    "ultimate_osc_periods": [],  # 0 features (removed)
     
-    # ==================== VOLATILITY INDICATORS (~12 features) ====================
+    # ==================== VOLATILITY INDICATORS (~7 features) ====================
     # Bollinger Bands - Price envelope (95% containment)
     "bollinger_params": {
         "period": 20,
         "std_dev": 2,
     },  # 4 features: middle, upper, lower, bandwidth
     
-    # ATR - Risk measurement for position sizing and stops
+    # ATR - Risk measurement for position sizing and stops (single period)
     "atr_period": 14,  # 1 feature
-    "atr_periods_multi": [7, 14, 21],  # 3 ATR variants
+    "atr_periods_multi": [],  # 0 features (removed multi-period ATR)
     
-    # Historical Volatility - Realized vol at different timescales
-    "hist_vol_periods": [10, 20, 60],  # 3 features (rolling std dev of log returns)
+    # Historical Volatility - Realized vol (reduced from 3 to 2 periods)
+    "hist_vol_periods": [20, 60],  # 2 features (rolling std dev of log returns)
     
-    # Keltner Channels - ATR-based envelope
-    "keltner_params": {
-        "period": 20,
-        "atr_period": 14,
-        "multiplier": 2,
-    },  # 3 features: middle, upper, lower
+    # Keltner Channels - DISABLED (redundant with Bollinger Bands)
+    "keltner_params": {},  # 0 features (removed)
     
-    # Donchian Channels - High/Low breakout bands
-    "donchian_period": 20,  # 2 features: upper, lower
+    # Donchian Channels - DISABLED (redundant with Bollinger Bands)
+    "donchian_period": None,  # 0 features (removed)
     
-    # ==================== VOLUME INDICATORS (~8 features) ====================
+    # ==================== VOLUME INDICATORS (~5 features) ====================
     # VWAP - Intraday benchmark (institutional execution target)
     "vwap": True,  # 1 feature
     
     # On-Balance Volume - Cumulative volume (trend confirmation)
     "obv": True,  # 1 feature
     
-    # Volume Rate of Change - Unusual activity detection
-    "volume_roc_periods": [5, 10, 20],  # 3 features
+    # Volume Rate of Change - Unusual activity detection (reduced from 3 to 1)
+    "volume_roc_periods": [10],  # 1 feature (keep middle period)
     
     # Accumulation/Distribution Line - Volume flow
     "ad_line": True,  # 1 feature
     
-    # Volume Weighted Moving Average
-    "vwma_period": 20,  # 1 feature
+    # Chaikin Money Flow - Volume-weighted momentum
+    "cmf_period": 20,  # 1 feature
     
-    # ==================== PATTERN RECOGNITION (~5+ features) ====================
-    # Candlestick Patterns (binary/categorical features)
+    # Volume Weighted Moving Average - DISABLED (redundant with VWAP)
+    "vwma_period": None,  # 0 features (removed)
+    
+    # ==================== PATTERN RECOGNITION (~5 features) ====================
+    # Candlestick Patterns (binary/categorical features) - Keep most reliable
     "candlestick_patterns": {
         "enabled": True,
         "patterns": [
             "doji",           # Indecision
             "hammer",         # Bullish reversal
-            "shooting_star",  # Bearish reversal
             "engulfing",      # Strong reversal
             "morning_star",   # Bullish reversal
             "evening_star",   # Bearish reversal
         ]
-    },  # ~6 binary features
+    },  # ~5 binary features (removed shooting_star - less reliable)
     
     # ==================== SUPPORT/RESISTANCE (~3 features) ====================
     # Support and Resistance Levels
@@ -198,21 +196,24 @@ FEATURE_CONFIG = {
         "num_levels": 3,
     },  # Distance to nearest S/R levels
     
-    # ==================== FIBONACCI LEVELS (~4 features) ====================
-    # Fibonacci Retracement - Reversal zones
+    # ==================== FIBONACCI LEVELS - DISABLED ====================
+    # Fibonacci Retracement - DISABLED (less critical for ML models)
     "fibonacci": {
-        "enabled": True,
+        "enabled": False,  # DISABLED
         "lookback": 50,
-        "levels": [0.236, 0.382, 0.500, 0.618],  # Key retracement levels
-    },  # Distance to Fib levels
+        "levels": [0.236, 0.382, 0.500, 0.618],
+    },  # 0 features (removed)
     
     # ==================== ADDITIONAL DERIVED FEATURES ====================
-    # Price-based features
+    # Price-based features (reduced from 4 to 3 return periods)
     "price_features": {
-        "returns": [1, 5, 10, 20],  # Log returns at multiple periods
+        "returns": [1, 5, 20],  # Log returns (removed 10d - redundant)
         "high_low_ratio": True,      # Daily range
         "close_position": True,      # Close position in daily range
-    },
+    },  # ~5 features
+    
+    # ML-Ready Features: Indicator slopes (reduced periods and indicators)
+    "slope_periods": [5, 10],  # 2 periods instead of 3 (removed period=3)
 }
 
 # Data Storage Paths (in-memory or file-based)

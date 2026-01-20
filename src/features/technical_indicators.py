@@ -698,34 +698,133 @@ class TechnicalIndicators:
     
     def ma_crossovers(self, df: pd.DataFrame) -> Dict[str, pd.Series]:
         """
-        Calculate moving average crossover features.
+        Calculate moving average crossover features (OPTIMIZED).
         
         Args:
             df: DataFrame with price data
             
         Returns:
-            Dictionary with MA crossover features
+            Dictionary with MA crossover features (reduced to 3 most important)
         """
         features = {}
         
-        # Price vs MAs
+        # Price vs MAs - Keep only SMA20 (most important short-term)
         sma_20 = self.sma(df, 20)
         sma_50 = self.sma(df, 50)
         sma_200 = self.sma(df, 200)
         
         features['price_vs_sma20'] = (df['close'] - sma_20) / sma_20
-        features['price_vs_sma50'] = (df['close'] - sma_50) / sma_50
-        features['price_vs_sma200'] = (df['close'] - sma_200) / sma_200
         
-        # MA crossovers
-        features['sma20_vs_sma50'] = (sma_20 - sma_50) / sma_50
-        features['sma50_vs_sma200'] = (sma_50 - sma_200) / sma_200
-        
-        # Golden/Death cross signal (binary)
+        # Golden/Death cross signal (binary) - Most important crossover signals
         features['golden_cross'] = ((sma_50 > sma_200) & (sma_50.shift(1) <= sma_200.shift(1))).astype(int)
         features['death_cross'] = ((sma_50 < sma_200) & (sma_50.shift(1) >= sma_200.shift(1))).astype(int)
         
         return features
+    
+    # ==================== DERIVATIVE FEATURES (ML-READY) ====================
+    
+    def calculate_indicator_slopes(
+        self,
+        df: pd.DataFrame,
+        indicators: List[str],
+        periods: List[int] = [3, 5, 10]
+    ) -> Dict[str, pd.Series]:
+        """
+        Calculate slopes (rate of change) for indicators to detect rising/falling trends.
+        This helps ML models understand momentum direction of indicators.
+        
+        Args:
+            df: DataFrame with indicator columns
+            indicators: List of indicator column names to calculate slopes for
+            periods: Lookback periods for slope calculation
+            
+        Returns:
+            Dictionary with slope features (percentage change and binary rising/falling)
+        """
+        slopes = {}
+        
+        for indicator in indicators:
+            if indicator in df.columns:
+                for period in periods:
+                    # Calculate slope as percentage change
+                    slope_name = f'{indicator}_slope_{period}'
+                    slopes[slope_name] = df[indicator].pct_change(period) * 100
+                    
+                    # Binary: is indicator rising (1) or falling (0)?
+                    rising_name = f'{indicator}_rising_{period}'
+                    slopes[rising_name] = (df[indicator] > df[indicator].shift(period)).astype(int)
+        
+        return slopes
+    
+    def calculate_additional_crossovers(self, df: pd.DataFrame) -> Dict[str, pd.Series]:
+        """
+        Calculate additional crossover signals for various indicators (OPTIMIZED).
+        Crossovers are critical events that often signal trend changes.
+        Reduced to ~8 most important crossovers.
+        
+        Args:
+            df: DataFrame with indicator columns
+            
+        Returns:
+            Dictionary with binary crossover features
+        """
+        crossovers = {}
+        
+        # MACD Crossovers - Keep 2 most important
+        if 'macd' in df.columns and 'macd_signal' in df.columns:
+            # MACD crosses above signal line (bullish)
+            crossovers['macd_cross_above'] = (
+                (df['macd'] > df['macd_signal']) & 
+                (df['macd'].shift(1) <= df['macd_signal'].shift(1))
+            ).astype(int)
+            
+            # MACD crosses below signal line (bearish)
+            crossovers['macd_cross_below'] = (
+                (df['macd'] < df['macd_signal']) & 
+                (df['macd'].shift(1) >= df['macd_signal'].shift(1))
+            ).astype(int)
+        
+        # Stochastic Crossovers - Keep both
+        if 'stoch_k' in df.columns and 'stoch_d' in df.columns:
+            # %K crosses above %D (bullish)
+            crossovers['stoch_cross_above'] = (
+                (df['stoch_k'] > df['stoch_d']) & 
+                (df['stoch_k'].shift(1) <= df['stoch_d'].shift(1))
+            ).astype(int)
+            
+            # %K crosses below %D (bearish)
+            crossovers['stoch_cross_below'] = (
+                (df['stoch_k'] < df['stoch_d']) & 
+                (df['stoch_k'].shift(1) >= df['stoch_d'].shift(1))
+            ).astype(int)
+        
+        # RSI Level Crossovers - Keep 2 most important (30 and 70 levels)
+        if 'rsi_14' in df.columns:
+            # RSI crosses above 30 (oversold exit)
+            crossovers['rsi_cross_above_30'] = (
+                (df['rsi_14'] > 30) & (df['rsi_14'].shift(1) <= 30)
+            ).astype(int)
+            
+            # RSI crosses below 70 (overbought exit)
+            crossovers['rsi_cross_below_70'] = (
+                (df['rsi_14'] < 70) & (df['rsi_14'].shift(1) >= 70)
+            ).astype(int)
+        
+        # Price crosses Bollinger Bands - Keep both
+        if all(col in df.columns for col in ['close', 'bb_upper', 'bb_lower']):
+            # Price crosses above upper band
+            crossovers['price_cross_bb_upper'] = (
+                (df['close'] > df['bb_upper']) & 
+                (df['close'].shift(1) <= df['bb_upper'].shift(1))
+            ).astype(int)
+            
+            # Price crosses below lower band
+            crossovers['price_cross_bb_lower'] = (
+                (df['close'] < df['bb_lower']) & 
+                (df['close'].shift(1) >= df['bb_lower'].shift(1))
+            ).astype(int)
+        
+        return crossovers
     
     # ==================== FEATURE GENERATION ====================
     
@@ -967,6 +1066,20 @@ class TechnicalIndicators:
         logger.info("Calculating trend features...")
         trend_results = self.ma_crossovers(df)
         for key, value in trend_results.items():
+            df[key] = value
+        
+        # Indicator slopes (derivative features for ML) - OPTIMIZED: 4 indicators, 2 periods
+        logger.info("Calculating indicator slopes...")
+        slope_indicators = ['rsi_14', 'macd', 'stoch_k', 'cci_20']  # Reduced from 6 to 4 indicators
+        slope_periods = config.get('slope_periods', [5, 10])  # Reduced from 3 to 2 periods
+        slope_results = self.calculate_indicator_slopes(df, slope_indicators, slope_periods)
+        for key, value in slope_results.items():
+            df[key] = value
+        
+        # Additional crossover signals (critical events for ML)
+        logger.info("Calculating additional crossover signals...")
+        crossover_results = self.calculate_additional_crossovers(df)
+        for key, value in crossover_results.items():
             df[key] = value
         
         logger.info(f"Feature generation complete. Total columns: {len(df.columns)}")

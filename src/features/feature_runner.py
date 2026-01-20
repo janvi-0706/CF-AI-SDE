@@ -20,6 +20,7 @@ from src.config.settings import (
     FEATURE_CONFIG
 )
 from src.features.technical_indicators import TechnicalIndicators
+from src.features.normalization import FeatureNormalizer
 from src.ingestion.equity_ohlcv import YahooFinanceIngestion
 
 # Setup logging
@@ -34,28 +35,31 @@ def run_feature_engineering(
     clean_data: Optional[dict] = None,
     timeframes: Optional[list] = None,
     load_from_file: bool = False,
-    save_to_file: bool = True
+    save_to_file: bool = True,
+    apply_normalization: bool = True
 ) -> dict:
     """
-    Run the complete feature engineering pipeline.
+    Run the complete feature engineering pipeline with ML-ready normalization.
     
     Args:
         clean_data: Dictionary of clean data by timeframe and symbol
         timeframes: List of timeframes to process
         load_from_file: Whether to load data from CSV files
         save_to_file: Whether to save feature data to CSV files
+        apply_normalization: Whether to apply feature normalization (stores both raw and normalized)
         
     Returns:
         Dictionary containing datasets with computed features
     """
-    # Initialize feature calculator
+    # Initialize feature calculator and normalizer
     feature_calculator = TechnicalIndicators()
+    normalizer = FeatureNormalizer()
     
     # Storage for feature data
     feature_data = {}
     
     logger.info("="*80)
-    logger.info("STARTING FEATURE ENGINEERING PIPELINE")
+    logger.info("STARTING FEATURE ENGINEERING PIPELINE (ML-READY)")
     logger.info("="*80)
     
     # Load data if needed
@@ -128,11 +132,40 @@ def run_feature_engineering(
                 FEATURE_CONFIG
             )
             
+            # Apply normalization if requested (ML-ready: stores both raw and normalized)
+            if apply_normalization:
+                logger.info(f"Normalizing features for {symbol}...")
+                # Exclude OHLCV and metadata from normalization
+                exclude_cols = ['timestamp', 'symbol', 'open', 'high', 'low', 'close', 'volume',
+                               'adj_open', 'adj_high', 'adj_low', 'adj_close', 'adj_volume',
+                               'dividends', 'stock_splits']
+                
+                # Apply z-score normalization (best for neural networks)
+                df_normalized, norm_params = normalizer.normalize_features(
+                    df_with_features,
+                    method='zscore',
+                    exclude_columns=exclude_cols,
+                    fit=True
+                )
+                df_with_features = df_normalized
+            
             feature_data[interval][symbol] = df_with_features
             
             # Log summary
-            num_features = len(df_with_features.columns) - len(df.columns)
-            logger.info(f"{symbol}: Added {num_features} features")
+            original_cols = ['timestamp', 'symbol', 'open', 'high', 'low', 'close', 'volume',
+                           'adj_open', 'adj_high', 'adj_low', 'adj_close', 'adj_volume',
+                           'dividends', 'stock_splits']
+            num_raw_features = len([col for col in df_with_features.columns 
+                                   if col not in original_cols and not col.endswith('_norm')])
+            num_norm_features = len([col for col in df_with_features.columns if col.endswith('_norm')])
+            logger.info(f"{symbol}: {num_raw_features} raw features + {num_norm_features} normalized features")
+        
+        # Save normalization parameters if normalization was applied
+        if apply_normalization and save_to_file:
+            output_dir = f"{DATA_PATHS['features']}/{interval}"
+            norm_params_file = Path(output_dir) / "normalization_params.json"
+            normalizer.save_normalization_params(normalizer.normalization_params, norm_params_file)
+            logger.info(f"Saved normalization parameters to {norm_params_file}")
         
         # Save to file if requested
         if save_to_file:
